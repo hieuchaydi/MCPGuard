@@ -2,6 +2,12 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from mcpguard.risk import (
+    risk_level_from_findings,
+    risk_score_from_findings,
+    severity_counts,
+)
+
 
 class Severity(str, Enum):
     CRITICAL = "critical"
@@ -23,18 +29,16 @@ class ToolReport(BaseModel):
     findings: list[Finding] = Field(default_factory=list)
 
     @property
-    def highest_severity(self) -> Severity | None:
-        order = [
-            Severity.CRITICAL,
-            Severity.HIGH,
-            Severity.MEDIUM,
-            Severity.LOW,
-            Severity.WARNING,
-        ]
-        for severity in order:
-            if any(f.severity == severity for f in self.findings):
-                return severity
-        return None
+    def highest_severity(self) -> str:
+        return risk_level_from_findings(self.findings)
+
+    @property
+    def risk_score(self) -> int:
+        return risk_score_from_findings(self.findings)
+
+    @property
+    def status(self) -> str:
+        return "pass" if not self.findings else "fail"
 
 
 class Report(BaseModel):
@@ -43,30 +47,25 @@ class Report(BaseModel):
 
     @property
     def score(self) -> int:
-        deductions = sum(
-            {
-                Severity.CRITICAL: 25,
-                Severity.HIGH: 12,
-                Severity.MEDIUM: 6,
-                Severity.LOW: 2,
-                Severity.WARNING: 1,
-            }[f.severity]
-            for t in self.tools
-            for f in t.findings
-        )
-        return max(0, 100 - deductions)
+        total_risk = self.risk_score
+        return max(0, 100 - total_risk)
 
     @property
     def status(self) -> str:
-        score = self.score
-        if score >= 90:
-            return "PASS"
-        if score >= 70:
-            return "WARN"
-        if score >= 50:
-            return "FAIL"
-        return "CRITICAL"
+        return "pass" if not self.all_findings else "fail"
 
     @property
     def all_findings(self) -> list[Finding]:
         return [f for t in self.tools for f in t.findings]
+
+    @property
+    def risk_score(self) -> int:
+        return sum(tool.risk_score for tool in self.tools)
+
+    @property
+    def overall_risk_level(self) -> str:
+        return risk_level_from_findings(self.all_findings)
+
+    @property
+    def severity_summary(self) -> dict[str, int]:
+        return severity_counts(self.all_findings)

@@ -7,7 +7,7 @@ import yaml
 from pydantic import BaseModel, Field
 
 DEFAULT_REGISTRY_PATH = Path("mcpguard.servers.yaml")
-VALID_FAIL_ON = {"warning", "low", "medium", "high", "critical"}
+VALID_FAIL_ON = {"low", "medium", "high", "critical"}
 
 
 class ManagedServer(BaseModel):

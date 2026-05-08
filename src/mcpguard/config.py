@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SchemaPolicy(BaseModel):
@@ -67,6 +67,14 @@ class MCPGuardConfig(BaseModel):
     secret_policy: SecretPolicy = Field(default_factory=SecretPolicy, alias="secret")
     tools_policy: dict[str, ToolPolicy] = Field(default_factory=dict, alias="tools")
     checks_policy: ChecksPolicy = Field(default_factory=ChecksPolicy, alias="checks")
+
+    @field_validator("fail_on")
+    @classmethod
+    def _validate_fail_on(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"low", "medium", "high", "critical"}:
+            raise ValueError("fail_on must be one of: low, medium, high, critical")
+        return normalized
 
     @property
     def schema(self) -> SchemaPolicy:

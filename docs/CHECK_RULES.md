@@ -8,7 +8,17 @@ Tai lieu nay la "rule catalog" de doc report nhanh va biet cach fix.
 - `high`: risk nghiem trong, nen fix truoc khi cho agent goi tool
 - `medium`: quality issue co the gay hanh vi khong on dinh
 - `low`: quality gap nho nhung nen harden
-- `warning`: canh bao, chua phai fail nghiem trong
+
+## Normalized Severity Mapping (Rule -> Severity)
+
+- `secret_leaked`: `critical`
+- `path_matches_denylist`: `high`
+- `path_outside_allowlist`: `high`
+- `prompt_injection_in_output`: `high`
+- `prompt_injection_in_description`: `medium`
+- `timeout_exceeded`: `medium`
+- `schema_invalid`: `high`
+- `missing_schema`: `medium`
 
 ## Rule Catalog
 
@@ -26,13 +36,21 @@ Tai lieu nay la "rule catalog" de doc report nhanh va biet cach fix.
 - Dieu kien: description ngan hon `min_description_length`.
 - Goi y fix: viet description day du hon.
 
-`missing_input_schema` (`high`)
+`missing_input_schema` (`medium`)
 - Dieu kien: khong co `inputSchema`.
+- Goi y fix: khai bao schema day du cho tool.
+
+`missing_schema` (`medium`)
+- Dieu kien: alias normalized cho `missing_input_schema` trong risk summary.
 - Goi y fix: khai bao schema day du cho tool.
 
 `no_properties_defined` (`medium`)
 - Dieu kien: `inputSchema.properties` thieu/invalid.
 - Goi y fix: khai bao properties ro rang.
+
+`schema_invalid` (`high`)
+- Dieu kien: schema khong hop le/qua mo rong (normalized high-risk bucket).
+- Goi y fix: sua schema theo JSON Schema contract ro rang, co bounds.
 
 `missing_required_declaration` (`high`)
 - Dieu kien: thieu `inputSchema.required`.
@@ -58,17 +76,17 @@ Tai lieu nay la "rule catalog" de doc report nhanh va biet cach fix.
 - Dieu kien: field ten `limit|count|page_size|max` thieu `maximum`.
 - Goi y fix: bound cac field de tranh abuse.
 
-`allows_additional_properties` (`warning`)
+`allows_additional_properties` (`low`)
 - Dieu kien: `additionalProperties` khac `false`.
 - Goi y fix: set `additionalProperties: false`.
 
 ## B. Timeout Rules
 
-`timeout_exceeded` (`high`)
+`timeout_exceeded` (`medium`)
 - Dieu kien: tool call vuot `timeout_ms`.
 - Goi y fix: toi uu tool logic, I/O, va fallback strategy.
 
-`slow_response` (`warning`)
+`slow_response` (`low`)
 - Dieu kien: elapsed > `warn_after_ms` nhung chua timeout.
 - Goi y fix: profile va cai thien performance.
 
@@ -108,7 +126,7 @@ Tai lieu nay la "rule catalog" de doc report nhanh va biet cach fix.
 
 ## F. Prompt Injection Rules
 
-`prompt_injection_in_description` (`high`)
+`prompt_injection_in_description` (`medium`)
 - Dieu kien: description tool co cum tu dang instruction injection (vd: ignore instructions, reveal system prompt, bypass policy).
 - Goi y fix: viet description theo style API contract, bo toan bo instruction mang tinh dieu huong agent.
 
@@ -118,11 +136,11 @@ Tai lieu nay la "rule catalog" de doc report nhanh va biet cach fix.
 
 ## G. Server-Level Warning Rules
 
-`no_tools_discovered` (`warning`)
+`no_tools_discovered` (`low`)
 - Dieu kien: discovery thanh cong nhung tool list rong.
 - Goi y fix: kiem tra register tool va startup logic.
 
-`tool_not_found` (`warning`)
+`tool_not_found` (`low`)
 - Dieu kien: dung `--tool` nhung ten tool khong ton tai.
 - Goi y fix: doi ten tool cho dung hoac bo `--tool`.
 
@@ -131,7 +149,7 @@ Tai lieu nay la "rule catalog" de doc report nhanh va biet cach fix.
 1. Fix toan bo `critical`.
 2. Fix `high` lien quan schema/input bounds/timeout.
 3. Giam `medium` de nang do on dinh.
-4. Hardening them qua `low` va `warning`.
+4. Hardening them qua `low`.
 
 ## Notes
 

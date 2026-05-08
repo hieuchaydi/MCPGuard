@@ -63,6 +63,11 @@ Generate JSON report:
 mcpguard mcp test basic-demo --format json --output basic-demo-report.json
 ```
 
+Risk-gated scan (CI style):
+```bash
+mcpguard mcp test basic-demo --fail-on high
+```
+
 ## 30-Second Failure Demo
 
 Run an intentionally unsafe MCP server:
@@ -81,6 +86,11 @@ Expected findings include:
 
 Vulnerable demo source:
 - `examples/vulnerable_server/server.py`
+
+JSON demo:
+```bash
+mcpguard mcp test vulnerable-demo --config mcpguard.yaml --format json
+```
 
 ## Policy File (`mcpguard.yaml`)
 
@@ -121,6 +131,47 @@ checks:
     enabled: true
     scan_description: true
     scan_output: true
+```
+
+## Severity And Risk Model
+
+Normalized severities:
+- `low`
+- `medium`
+- `high`
+- `critical`
+
+Risk score weights:
+- `critical = 10`
+- `high = 7`
+- `medium = 4`
+- `low = 1`
+
+`--fail-on` thresholds:
+- `low`: fail on low or above
+- `medium`: fail on medium or above
+- `high`: fail on high or critical
+- `critical`: fail only on critical
+
+## JSON Output Schema
+
+`--format json` returns a stable machine-readable object:
+
+```json
+{
+  "target": "python examples/basic_server/server.py",
+  "status": "pass",
+  "overall_risk_level": "low",
+  "summary": {
+    "tools_tested": 1,
+    "findings": 0,
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "tools": []
+}
 ```
 
 Planned policy extensions:

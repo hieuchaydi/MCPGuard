@@ -21,15 +21,16 @@ from mcpguard.registry import (
     remove_server,
     upsert_server,
 )
-from mcpguard.report.json_report import print_json_report
+from mcpguard.report.json_report import build_json_report, print_json_report
 from mcpguard.report.terminal import print_terminal_report
+from mcpguard.risk import fail_threshold_reached
 from mcpguard.runner import run
 
 app = typer.Typer(name="mcpguard", help="Test MCP tools before agents trust them.")
 mcp_app = typer.Typer(help="Manage and test multiple MCP server targets.")
 app.add_typer(mcp_app, name="mcp")
 
-SEVERITY_ORDER = ["warning", "low", "medium", "high", "critical"]
+SEVERITY_ORDER = ["low", "medium", "high", "critical"]
 
 DEFAULT_CONFIG_TEMPLATE = dedent(
     """\
@@ -50,27 +51,27 @@ DEFAULT_CONFIG_TEMPLATE = dedent(
       timeout_ms: 10000
       warn_after_ms: 3000
 
-secret:
-  enabled: true
-  patterns:
-    - "OPENAI_API_KEY"
-    - "token="
+    secret:
+      enabled: true
+      patterns:
+        - "OPENAI_API_KEY"
+        - "token="
 
-tools:
-  read_file:
-    allow_paths:
-      - "./docs"
-      - "./src"
-    deny_paths:
-      - ".env"
-      - "~/.ssh"
-    network: false
+    tools:
+      read_file:
+        allow_paths:
+          - "./docs"
+          - "./src"
+        deny_paths:
+          - ".env"
+          - "~/.ssh"
+        network: false
 
-checks:
-  prompt_injection:
-    enabled: true
-    scan_description: true
-    scan_output: true
+    checks:
+      prompt_injection:
+        enabled: true
+        scan_description: true
+        scan_output: true
     """
 )
 
@@ -82,37 +83,8 @@ def _validate_format(value: str) -> str:
     return normalized
 
 
-def _serialize_report(report: Report) -> dict:
-    return {
-        "server_command": report.server_command,
-        "score": report.score,
-        "status": report.status,
-        "tools": [tool.model_dump(mode="json") for tool in report.tools],
-        "findings": [finding.model_dump(mode="json") for finding in report.all_findings],
-    }
-
-
-def get_worst_severity(report: Report) -> str | None:
-    worst_index = -1
-    worst: str | None = None
-    for finding in report.all_findings:
-        value = finding.severity.value.lower()
-        if value in SEVERITY_ORDER:
-            idx = SEVERITY_ORDER.index(value)
-            if idx > worst_index:
-                worst_index = idx
-                worst = value
-    return worst
-
-
 def _enforce_fail_gate(report: Report, threshold: str) -> bool:
-    threshold = threshold.lower().strip()
-    if threshold not in SEVERITY_ORDER:
-        return False
-    worst = get_worst_severity(report)
-    if not worst:
-        return False
-    return SEVERITY_ORDER.index(worst) >= SEVERITY_ORDER.index(threshold)
+    return fail_threshold_reached(report.all_findings, threshold)
 
 
 def _connection_error_report(command: str, exc: Exception) -> Report:
@@ -134,9 +106,14 @@ def _connection_error_report(command: str, exc: Exception) -> Report:
     )
 
 
-def _render_report(report: Report, format: str, output: Path | None = None) -> None:
+def _render_report(
+    report: Report,
+    format: str,
+    output: Path | None = None,
+    fail_on: str = "high",
+) -> None:
     if format == "json":
-        print_json_report(report, output)
+        print_json_report(report, output, fail_on=fail_on)
     else:
         print_terminal_report(report)
 
@@ -186,7 +163,7 @@ def test(
         typer.echo(f"Connection error: cannot connect to server: {config.server_command}", err=True)
         raise
 
-    _render_report(report, format, output)
+    _render_report(report, format, output, fail_on=config.fail_on)
     if _enforce_fail_gate(report, config.fail_on):
         raise typer.Exit(code=1)
 
@@ -300,7 +277,7 @@ def mcp_test(
     fail_threshold = fail_on or target.fail_on
     config = load_config(config_file, target.command, fail_threshold)
     report = _run_scan(config, tool=tool)
-    _render_report(report, format, output)
+    _render_report(report, format, output, fail_on=config.fail_on)
     if _enforce_fail_gate(report, config.fail_on):
         raise typer.Exit(code=1)
 
@@ -348,7 +325,7 @@ def mcp_test_all(
                 "name": name,
                 "command": target.command,
                 "fail_on": config.fail_on,
-                "report": _serialize_report(report),
+                "report": build_json_report(report, fail_on=config.fail_on),
             }
         )
 

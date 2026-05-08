@@ -67,8 +67,16 @@ def check_schema_quality(tool: Any, policy: SchemaPolicy) -> list[Finding]:
         findings.append(
             Finding(
                 tool_name=tool_name,
-                severity=Severity.HIGH,
+                severity=Severity.MEDIUM,
                 rule="missing_input_schema",
+                message="Tool does not define inputSchema.",
+            )
+        )
+        findings.append(
+            Finding(
+                tool_name=tool_name,
+                severity=Severity.MEDIUM,
+                rule="missing_schema",
                 message="Tool does not define inputSchema.",
             )
         )
@@ -85,6 +93,14 @@ def check_schema_quality(tool: Any, policy: SchemaPolicy) -> list[Finding]:
                 severity=Severity.MEDIUM,
                 rule="no_properties_defined",
                 message="inputSchema.properties is missing or invalid.",
+            )
+        )
+        findings.append(
+            Finding(
+                tool_name=tool_name,
+                severity=Severity.HIGH,
+                rule="schema_invalid",
+                message="inputSchema is invalid or too permissive.",
             )
         )
         return findings

@@ -25,7 +25,7 @@ Options (`mcpguard test`):
 - `--tool`: chi test 1 tool theo ten
 - `--format`: `terminal` hoac `json`
 - `--output`: file output khi `--format json`
-- `--fail-on`: threshold fail gate (`warning|low|medium|high|critical`)
+- `--fail-on`: threshold fail gate (`low|medium|high|critical`)
 
 MCP target subcommands:
 - `mcpguard mcp add <name> --command "..."`
@@ -111,6 +111,12 @@ Field summary:
 - `1`: co finding vuot nguong `fail_on`
 - `2`: khong ket noi/discovery duoc MCP server
 
+Fail gate behavior:
+- `--fail-on low`: fail neu co finding low/medium/high/critical
+- `--fail-on medium`: fail neu co finding medium/high/critical
+- `--fail-on high`: fail neu co finding high/critical
+- `--fail-on critical`: fail chi khi co critical
+
 ## 5. Common Usage Recipes
 
 Shortest smoke demo:
@@ -141,6 +147,11 @@ mcpguard mcp test basic-demo --format json
 JSON file:
 ```bash
 mcpguard mcp test basic-demo --format json --output basic-demo-report.json
+```
+
+JSON vulnerable demo:
+```bash
+mcpguard mcp test vulnerable-demo --config mcpguard.yaml --format json
 ```
 
 Fail gate:
@@ -225,7 +236,36 @@ mcpguard test --command "python server.py" --format json --output mcpguard-repor
 Repo da co workflow mau:
 - `.github/workflows/mcpguard.yml`
 
-## 9. Docker Reference
+## 9. JSON Output Contract
+
+`--format json` tra ve object on dinh:
+
+```json
+{
+  "target": "python examples/basic_server/server.py",
+  "status": "pass",
+  "overall_risk_level": "low",
+  "summary": {
+    "tools_tested": 1,
+    "findings": 0,
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "tools": [
+    {
+      "name": "echo",
+      "status": "pass",
+      "risk_level": "low",
+      "risk_score": 0,
+      "findings": []
+    }
+  ]
+}
+```
+
+## 10. Docker Reference
 
 Build image:
 ```bash
@@ -252,7 +292,7 @@ Windows `cmd.exe` variant:
 docker run --rm -v "%cd%:/workspace" -w /workspace mcpguard-dev sh -lc "pip install -e .[dev] && mcpguard mcp test basic-demo --format json --output basic-demo-report.json"
 ```
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 `Connection error: Could not infer a valid transport`
 - Dung command theo format MCPGuard parse duoc, vi du:
