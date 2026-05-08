@@ -68,6 +68,10 @@ Risk-gated scan (CI style):
 mcpguard mcp test basic-demo --fail-on high
 ```
 
+## CLI Demo
+
+![MCPGuard CLI demo](image/cmd_SChLZDThXI.gif)
+
 ## 30-Second Failure Demo
 
 Run an intentionally unsafe MCP server:
