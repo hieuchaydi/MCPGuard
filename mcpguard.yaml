@@ -1,0 +1,18 @@
+server:
+  command: "python server.py"
+
+policy:
+  fail_on: "high"
+
+schema:
+  require_input_schema: true
+  require_descriptions: true
+  require_required_fields: true
+  require_max_for_numbers: true
+
+timeout:
+  timeout_ms: 10000
+  warn_after_ms: 3000
+
+secret:
+  enabled: true

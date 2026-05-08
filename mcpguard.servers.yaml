@@ -1,0 +1,9 @@
+servers:
+  basic-demo:
+    command: python examples/basic_server/server.py
+    fail_on: medium
+    tags:
+      - demo
+      - basic
+      - quickstart
+    notes: Minimal one-tool server for short video demos.

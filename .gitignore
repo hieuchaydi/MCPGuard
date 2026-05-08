@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+
+# Virtual environments
+venv/
+.venv/
+
+# Test/cache artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local env/secrets
+.env
+
+# Local reports
+report.json
+report-docker.json
+
+# OS/editor
+.DS_Store
+Thumbs.db

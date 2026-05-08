@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcpguard"
+version = "0.1.0"
+description = "Security and reliability checks for MCP tools before agents call them"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=2.0",
+    "typer>=0.12",
+    "rich>=13",
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "jsonschema>=4",
+    "pyyaml>=6",
+]
+
+[project.scripts]
+mcpguard = "mcpguard.cli:app"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
