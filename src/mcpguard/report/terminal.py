@@ -54,6 +54,10 @@ RECOMMENDATIONS = {
     "timeout_exceeded": "Reduce latency or optimize tool execution path.",
     "slow_response": "Profile and optimize tool performance.",
     "fuzz_timeout": "Ensure invalid input fails fast with clear errors.",
+    "path_outside_allowlist": "Restrict file access to explicit allow_paths.",
+    "path_matches_denylist": "Block denied paths and return sanitized authorization errors.",
+    "prompt_injection_in_description": "Remove instruction-like text from tool descriptions.",
+    "prompt_injection_in_output": "Sanitize tool outputs to prevent instruction injection.",
     "no_tools_discovered": "Verify MCP server startup and tool registration.",
     "tool_not_found": "Check tool naming or remove incompatible --tool filter.",
 }

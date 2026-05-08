@@ -7,3 +7,11 @@ servers:
       - basic
       - quickstart
     notes: Minimal one-tool server for short video demos.
+  vulnerable-demo:
+    command: python examples/vulnerable_server/server.py
+    fail_on: high
+    tags:
+      - demo
+      - vulnerable
+      - security
+    notes: Intentionally unsafe server to showcase MCPGuard findings.

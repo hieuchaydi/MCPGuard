@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from textwrap import dedent
 from pathlib import Path
 
 import typer
@@ -29,6 +30,49 @@ mcp_app = typer.Typer(help="Manage and test multiple MCP server targets.")
 app.add_typer(mcp_app, name="mcp")
 
 SEVERITY_ORDER = ["warning", "low", "medium", "high", "critical"]
+
+DEFAULT_CONFIG_TEMPLATE = dedent(
+    """\
+    server:
+      command: "python examples/basic_server/server.py"
+
+    policy:
+      fail_on: "high"
+
+    schema:
+      require_input_schema: true
+      require_descriptions: true
+      require_required_fields: true
+      require_max_for_numbers: true
+      min_description_length: 10
+
+    timeout:
+      timeout_ms: 10000
+      warn_after_ms: 3000
+
+secret:
+  enabled: true
+  patterns:
+    - "OPENAI_API_KEY"
+    - "token="
+
+tools:
+  read_file:
+    allow_paths:
+      - "./docs"
+      - "./src"
+    deny_paths:
+      - ".env"
+      - "~/.ssh"
+    network: false
+
+checks:
+  prompt_injection:
+    enabled: true
+    scan_description: true
+    scan_output: true
+    """
+)
 
 
 def _validate_format(value: str) -> str:
@@ -107,6 +151,18 @@ def _run_scan(config: MCPGuardConfig, tool: str | None = None) -> Report:
 @app.callback()
 def main() -> None:
     """MCPGuard command group."""
+
+
+@app.command("init")
+def init_config(
+    output: Path = typer.Option(Path("mcpguard.yaml"), "--output", help="Output config path"),
+    force: bool = typer.Option(False, "--force", help="Overwrite if file already exists"),
+) -> None:
+    """Create a starter MCPGuard policy file."""
+    if output.exists() and not force:
+        raise typer.BadParameter(f"Config already exists: {output}. Use --force to overwrite.")
+    output.write_text(DEFAULT_CONFIG_TEMPLATE, encoding="utf-8")
+    typer.echo(f"Wrote starter config to {output}")
 
 
 @app.command()

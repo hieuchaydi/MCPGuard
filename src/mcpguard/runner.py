@@ -3,6 +3,11 @@ from __future__ import annotations
 from typing import Any
 
 from mcpguard.checks.fuzz_inputs import check_fuzz_inputs
+from mcpguard.checks.permission_boundary import check_permission_boundary
+from mcpguard.checks.prompt_injection import (
+    check_prompt_injection_description,
+    check_prompt_injection_output,
+)
 from mcpguard.checks.schema_quality import check_schema_quality
 from mcpguard.checks.timeout_check import check_timeout
 from mcpguard.client import connect, discover_tools
@@ -58,7 +63,10 @@ async def run(config: MCPGuardConfig, only_tool: str | None = None) -> Report:
         for tool in tools:
             tool_report = ToolReport(tool_name=_tool_name(tool))
             tool_report.findings.extend(check_schema_quality(tool, config.schema))
+            tool_report.findings.extend(check_prompt_injection_description(tool, config))
             tool_report.findings.extend(await check_timeout(tool, client, config.timeout))
+            tool_report.findings.extend(await check_prompt_injection_output(tool, client, config))
+            tool_report.findings.extend(await check_permission_boundary(tool, client, config))
             tool_report.findings.extend(await check_fuzz_inputs(tool, client, config))
             report.tools.append(tool_report)
 

@@ -41,6 +41,22 @@ class SecretPolicy(BaseModel):
     )
 
 
+class ToolPolicy(BaseModel):
+    allow_paths: list[str] = Field(default_factory=list)
+    deny_paths: list[str] = Field(default_factory=list)
+    network: bool | None = None
+
+
+class PromptInjectionPolicy(BaseModel):
+    enabled: bool = True
+    scan_description: bool = True
+    scan_output: bool = True
+
+
+class ChecksPolicy(BaseModel):
+    prompt_injection: PromptInjectionPolicy = Field(default_factory=PromptInjectionPolicy)
+
+
 class MCPGuardConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -49,6 +65,8 @@ class MCPGuardConfig(BaseModel):
     schema_policy: SchemaPolicy = Field(default_factory=SchemaPolicy, alias="schema")
     timeout_policy: TimeoutPolicy = Field(default_factory=TimeoutPolicy, alias="timeout")
     secret_policy: SecretPolicy = Field(default_factory=SecretPolicy, alias="secret")
+    tools_policy: dict[str, ToolPolicy] = Field(default_factory=dict, alias="tools")
+    checks_policy: ChecksPolicy = Field(default_factory=ChecksPolicy, alias="checks")
 
     @property
     def schema(self) -> SchemaPolicy:
@@ -61,6 +79,17 @@ class MCPGuardConfig(BaseModel):
     @property
     def secret(self) -> SecretPolicy:
         return self.secret_policy
+
+    @property
+    def tools(self) -> dict[str, ToolPolicy]:
+        return self.tools_policy
+
+    def tool_policy(self, tool_name: str) -> ToolPolicy | None:
+        return self.tools.get(tool_name)
+
+    @property
+    def checks(self) -> ChecksPolicy:
+        return self.checks_policy
 
 
 def _load_yaml(config_file: Path) -> dict[str, Any]:
@@ -88,6 +117,8 @@ def load_config(
         "schema": raw.get("schema", {}),
         "timeout": raw.get("timeout", {}),
         "secret": raw.get("secret", {}),
+        "tools": raw.get("tools", {}),
+        "checks": raw.get("checks", {}),
     }
 
     if command_override is not None:

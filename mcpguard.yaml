@@ -1,5 +1,5 @@
 server:
-  command: "python server.py"
+  command: "python examples/basic_server/server.py"
 
 policy:
   fail_on: "high"
@@ -16,3 +16,19 @@ timeout:
 
 secret:
   enabled: true
+
+tools:
+  read_file:
+    allow_paths:
+      - "./docs"
+      - "./src"
+    deny_paths:
+      - ".env"
+      - "~/.ssh"
+    network: false
+
+checks:
+  prompt_injection:
+    enabled: true
+    scan_description: true
+    scan_output: true

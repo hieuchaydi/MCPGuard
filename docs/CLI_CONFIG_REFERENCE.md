@@ -9,6 +9,11 @@ Main scan command:
 mcpguard test [options]
 ```
 
+Init config:
+```bash
+mcpguard init
+```
+
 Target management command group:
 ```bash
 mcpguard mcp <subcommand> [options]
@@ -45,7 +50,7 @@ Thu tu uu tien:
 Mau `mcpguard.yaml`:
 ```yaml
 server:
-  command: "python server.py"
+  command: "python examples/basic_server/server.py"
 
 policy:
   fail_on: "high"
@@ -67,6 +72,22 @@ secret:
     - "OPENAI_API_KEY"
     - "GROQ_API_KEY"
     - "token="
+
+tools:
+  read_file:
+    allow_paths:
+      - "./docs"
+      - "./src"
+    deny_paths:
+      - ".env"
+      - "~/.ssh"
+    network: false
+
+checks:
+  prompt_injection:
+    enabled: true
+    scan_description: true
+    scan_output: true
 ```
 
 Field summary:
@@ -77,6 +98,12 @@ Field summary:
 - `timeout.warn_after_ms`: warning threshold cho response cham
 - `secret.enabled`: bat/tat secret scan
 - `secret.patterns`: regex/literal can scan trong response
+- `tools.<tool>.allow_paths`: allowlist path cho tool (permission boundary)
+- `tools.<tool>.deny_paths`: denylist path cho tool
+- `tools.<tool>.network`: placeholder policy cho network boundary (rule se duoc mo rong tiep)
+- `checks.prompt_injection.enabled`: bat/tat prompt injection checks
+- `checks.prompt_injection.scan_description`: scan description/metadata truoc runtime probe
+- `checks.prompt_injection.scan_output`: scan output sau probe call
 
 ## 4. Exit Codes
 
@@ -153,6 +180,11 @@ Test toan bo target:
 mcpguard mcp test-all --format json --output mcpguard-all.json
 ```
 
+Demo fail nhanh voi target co chu y de security:
+```bash
+mcpguard mcp test vulnerable-demo --config mcpguard.yaml --fail-on high
+```
+
 Import target tu Codex config:
 ```bash
 mcpguard mcp import-codex
@@ -189,6 +221,9 @@ Keep JSON artifact:
 ```bash
 mcpguard test --command "python server.py" --format json --output mcpguard-report.json --fail-on high
 ```
+
+Repo da co workflow mau:
+- `.github/workflows/mcpguard.yml`
 
 ## 9. Docker Reference
 

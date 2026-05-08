@@ -96,7 +96,27 @@ Tai lieu nay la "rule catalog" de doc report nhanh va biet cach fix.
 - Dieu kien: response match secret pattern.
 - Goi y fix: mask/redact secret, khong tra raw token/key.
 
-## E. Server-Level Warning Rules
+## E. Permission Boundary Rules
+
+`path_outside_allowlist` (`high`)
+- Dieu kien: tool chap nhan/tra ve path nam ngoai `tools.<tool>.allow_paths`.
+- Goi y fix: chi cho phep doc path trong allowlist va reject path ngoai scope.
+
+`path_matches_denylist` (`high`)
+- Dieu kien: tool chap nhan path nam trong `tools.<tool>.deny_paths`.
+- Goi y fix: block denylist truoc khi xu ly va tra ve loi authorization an toan.
+
+## F. Prompt Injection Rules
+
+`prompt_injection_in_description` (`high`)
+- Dieu kien: description tool co cum tu dang instruction injection (vd: ignore instructions, reveal system prompt, bypass policy).
+- Goi y fix: viet description theo style API contract, bo toan bo instruction mang tinh dieu huong agent.
+
+`prompt_injection_in_output` (`high`)
+- Dieu kien: output tool chua instruction injection hoac secret-exfiltration phrasing.
+- Goi y fix: sanitize output, loai bo hidden instruction va thong diep dieu huong agent.
+
+## G. Server-Level Warning Rules
 
 `no_tools_discovered` (`warning`)
 - Dieu kien: discovery thanh cong nhung tool list rong.
