@@ -15,3 +15,11 @@ servers:
       - vulnerable
       - security
     notes: Intentionally unsafe server to showcase MCPGuard findings.
+  exploit-playground:
+    command: python examples/exploit_playground/malicious_server.py
+    fail_on: high
+    tags:
+      - benchmark
+      - exploit
+      - security
+    notes: Structured malicious MCP corpus for detection regression tests.

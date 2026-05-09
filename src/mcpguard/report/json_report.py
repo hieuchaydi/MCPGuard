@@ -11,9 +11,16 @@ def build_json_report(report: Report, fail_on: str = "high") -> dict:
     tools = [summarize_tool(tool.tool_name, tool.findings) for tool in report.tools]
     summary = report.severity_summary
     return {
+        "schema_version": "0.2",
         "target": report.server_command,
         "status": "fail" if fail_threshold_reached(report.all_findings, fail_on) else "pass",
         "overall_risk_level": report.overall_risk_level,
+        "risk_score": report.risk_score,
+        "confidence": max(
+            [finding["risk"]["confidence"] for tool in tools for finding in tool["findings"]],
+            default=1.0,
+        ),
+        "trust_classification": report.trust_classification,
         "summary": {
             "tools_tested": len(report.tools),
             "findings": len(report.all_findings),

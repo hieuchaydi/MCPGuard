@@ -1,0 +1,6 @@
+- id: mcpguard-basic-demo
+  name: MCPGuard basic demo trust gate
+  description: Run MCPGuard against the saved basic-demo MCP target.
+  entry: mcpguard mcp test basic-demo --fail-on high
+  language: python
+  pass_filenames: false

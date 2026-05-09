@@ -33,6 +33,7 @@ def _print_summary(report: Report, console: Console) -> None:
     summary.add_row("Status", f"[{STATUS_STYLE[report.status]}]{report.status.upper()}[/{STATUS_STYLE[report.status]}]")
     summary.add_row("Overall Risk", f"[{SEVERITY_STYLE[report.overall_risk_level]}]{report.overall_risk_level.upper()}[/{SEVERITY_STYLE[report.overall_risk_level]}]")
     summary.add_row("Risk Score", str(report.risk_score))
+    summary.add_row("Trust", report.trust_classification.upper())
     summary.add_row("Tools Tested", str(len(report.tools)))
     summary.add_row("Findings", str(len(report.all_findings)))
     summary.add_row("Critical", str(counts["critical"]))
@@ -64,7 +65,8 @@ def print_terminal_report(report: Report, console: Console | None = None) -> Non
             f"[{status_style}]{summary['status'].upper()}[/{status_style}] "
             f"{summary['name']} "
             f"risk=[{risk_style}]{summary['risk_level'].upper()}[/{risk_style}] "
-            f"score={summary['risk_score']}"
+            f"score={summary['risk_score']} "
+            f"trust={summary['trust_classification'].upper()}"
         )
         for finding in summary["findings"]:
             sev = finding["severity"]

@@ -23,8 +23,8 @@ Options (`mcpguard test`):
 - `--command`, `-c`: MCP server command (for example, `python server.py`)
 - `--config`: path to `mcpguard.yaml`
 - `--tool`: test only one tool by name
-- `--format`: `terminal` or `json`
-- `--output`: write output file when `--format json`
+- `--format`: `terminal`, `json`, or `sarif`
+- `--output`: write output file when `--format json` or `--format sarif`
 - `--fail-on`: fail gate threshold (`low|medium|high|critical`)
 
 MCP target subcommands:
@@ -235,8 +235,14 @@ Write JSON artifact:
 mcpguard test --command "python server.py" --format json --output mcpguard-report.json --fail-on high
 ```
 
+Write SARIF artifact:
+```bash
+mcpguard test --command "python server.py" --format sarif --output mcpguard.sarif --fail-on high
+```
+
 A ready workflow is included:
 - `.github/workflows/mcpguard.yml`
+- `.github/actions/mcpguard/action.yml`
 
 ## 9. JSON Output Contract
 
@@ -244,9 +250,13 @@ A ready workflow is included:
 
 ```json
 {
+  "schema_version": "0.2",
   "target": "python examples/basic_server/server.py",
   "status": "pass",
   "overall_risk_level": "low",
+  "risk_score": 0,
+  "confidence": 1.0,
+  "trust_classification": "trusted",
   "summary": {
     "tools_tested": 1,
     "findings": 0,
@@ -261,6 +271,7 @@ A ready workflow is included:
       "status": "pass",
       "risk_level": "low",
       "risk_score": 0,
+      "trust_classification": "trusted",
       "findings": []
     }
   ]

@@ -7,7 +7,7 @@ It is a trust gate, not just a schema checker.
 
 Tagline: **Test MCP tools before agents trust them.**
 
-[Functions Guide](docs/FUNCTIONS_GUIDE.md) | [Rule Reference](docs/CHECK_RULES.md) | [CLI/Config/CI/Docker](docs/CLI_CONFIG_REFERENCE.md)
+[Functions Guide](docs/FUNCTIONS_GUIDE.md) | [Rule Reference](docs/CHECK_RULES.md) | [Security Architecture](docs/SECURITY_ARCHITECTURE.md) | [Benchmarks](docs/BENCHMARK_AND_EVALUATION.md) | [CLI/Config/CI/Docker](docs/CLI_CONFIG_REFERENCE.md)
 
 <p align="center">
   <img src="image/mcpguard-horizontal.svg" alt="MCPGuard logo" width="220" />

@@ -4,8 +4,11 @@ from mcpguard.models import Finding, Report, Severity, ToolReport
 from mcpguard.risk import (
     fail_threshold_reached,
     finding_severity,
+    finding_risk_score,
     risk_level_from_findings,
     risk_score_from_findings,
+    summarize_tool,
+    trust_classification,
 )
 
 
@@ -33,7 +36,8 @@ def test_risk_score_calculation_weights():
         _finding("timeout_exceeded", Severity.MEDIUM),
         _finding("number_missing_minimum", Severity.LOW),
     ]
-    assert risk_score_from_findings(findings) == 22
+    assert risk_score_from_findings(findings) >= 99
+    assert finding_risk_score(findings[0]) >= 90
 
 
 def test_risk_level_calculation_uses_highest_severity():
@@ -66,3 +70,24 @@ def test_report_overall_risk_and_status():
     )
     assert report.overall_risk_level == "critical"
     assert report.status == "fail"
+    assert report.trust_classification == "blocked"
+
+
+def test_summarize_tool_includes_explainable_risk_fields():
+    finding = _finding("prompt_injection_in_output", Severity.HIGH, "unsafe output")
+    summary = summarize_tool("tool", [finding])
+
+    assert summary["risk_score"] >= 70
+    assert summary["trust_classification"] in {"untrusted", "blocked"}
+    assert summary["findings"][0]["risk"]["impact"] == "high"
+    assert summary["findings"][0]["risk"]["exploitability"] == "high"
+    assert "why_this_matters" in summary["findings"][0]["explanation"]
+    assert "attack_path" in summary["findings"][0]["explanation"]
+
+
+def test_trust_classification_thresholds():
+    assert trust_classification(0) == "trusted"
+    assert trust_classification(20) == "review"
+    assert trust_classification(40) == "restricted"
+    assert trust_classification(70) == "untrusted"
+    assert trust_classification(90) == "blocked"

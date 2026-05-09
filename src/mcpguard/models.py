@@ -6,6 +6,7 @@ from mcpguard.risk import (
     risk_level_from_findings,
     risk_score_from_findings,
     severity_counts,
+    trust_classification,
 )
 
 
@@ -37,6 +38,10 @@ class ToolReport(BaseModel):
         return risk_score_from_findings(self.findings)
 
     @property
+    def trust_classification(self) -> str:
+        return trust_classification(self.risk_score)
+
+    @property
     def status(self) -> str:
         return "pass" if not self.findings else "fail"
 
@@ -60,11 +65,15 @@ class Report(BaseModel):
 
     @property
     def risk_score(self) -> int:
-        return sum(tool.risk_score for tool in self.tools)
+        return risk_score_from_findings(self.all_findings)
 
     @property
     def overall_risk_level(self) -> str:
         return risk_level_from_findings(self.all_findings)
+
+    @property
+    def trust_classification(self) -> str:
+        return trust_classification(self.risk_score)
 
     @property
     def severity_summary(self) -> dict[str, int]:

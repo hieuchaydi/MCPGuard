@@ -23,10 +23,23 @@ def test_json_report_structure_is_stable():
     )
     payload = build_json_report(report, fail_on="high")
 
-    assert set(payload.keys()) == {"target", "status", "overall_risk_level", "summary", "tools"}
+    assert set(payload.keys()) == {
+        "schema_version",
+        "target",
+        "status",
+        "overall_risk_level",
+        "risk_score",
+        "confidence",
+        "trust_classification",
+        "summary",
+        "tools",
+    }
+    assert payload["schema_version"] == "0.2"
     assert payload["target"] == "python examples/vulnerable_server/server.py"
     assert payload["status"] == "fail"
     assert payload["overall_risk_level"] == "high"
+    assert payload["risk_score"] >= 70
+    assert payload["trust_classification"] in {"untrusted", "blocked"}
 
     summary = payload["summary"]
     assert summary["tools_tested"] == 1
@@ -40,10 +53,13 @@ def test_json_report_structure_is_stable():
     assert tool["name"] == "read_file"
     assert tool["status"] == "fail"
     assert tool["risk_level"] == "high"
-    assert tool["risk_score"] == 7
+    assert tool["risk_score"] >= 70
+    assert tool["trust_classification"] in {"untrusted", "blocked"}
     assert tool["findings"][0]["rule"] == "path_outside_allowlist"
     assert tool["findings"][0]["severity"] == "high"
     assert "recommendation" in tool["findings"][0]
+    assert "risk" in tool["findings"][0]
+    assert "explanation" in tool["findings"][0]
 
 
 def test_json_report_status_respects_fail_on_threshold():

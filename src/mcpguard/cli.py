@@ -22,6 +22,7 @@ from mcpguard.registry import (
     upsert_server,
 )
 from mcpguard.report.json_report import build_json_report, print_json_report
+from mcpguard.report.sarif_report import build_sarif_report, print_sarif_report
 from mcpguard.report.terminal import print_terminal_report
 from mcpguard.risk import fail_threshold_reached
 from mcpguard.runner import run
@@ -78,8 +79,8 @@ DEFAULT_CONFIG_TEMPLATE = dedent(
 
 def _validate_format(value: str) -> str:
     normalized = value.lower().strip()
-    if normalized not in {"terminal", "json"}:
-        raise typer.BadParameter("format must be one of: terminal, json")
+    if normalized not in {"terminal", "json", "sarif"}:
+        raise typer.BadParameter("format must be one of: terminal, json, sarif")
     return normalized
 
 
@@ -114,6 +115,8 @@ def _render_report(
 ) -> None:
     if format == "json":
         print_json_report(report, output, fail_on=fail_on)
+    elif format == "sarif":
+        print_sarif_report(report, output)
     else:
         print_terminal_report(report)
 
@@ -147,7 +150,7 @@ def test(
     command: str | None = typer.Option(None, "--command", "-c", help="MCP server command"),
     config_file: Path | None = typer.Option(None, "--config", help="Path to mcpguard.yaml"),
     tool: str | None = typer.Option(None, "--tool", help="Test only this tool"),
-    format: str = typer.Option("terminal", "--format", help="terminal | json"),
+    format: str = typer.Option("terminal", "--format", help="terminal | json | sarif"),
     output: Path | None = typer.Option(None, "--output", help="Write report to file"),
     fail_on: str | None = typer.Option(None, "--fail-on", help="Exit code 1 if severity >= this"),
 ) -> None:
@@ -263,7 +266,7 @@ def mcp_test(
     name: str = typer.Argument(..., help="Saved MCP target name"),
     config_file: Path | None = typer.Option(None, "--config", help="Optional policy config"),
     tool: str | None = typer.Option(None, "--tool", help="Test only this tool"),
-    format: str = typer.Option("terminal", "--format", help="terminal | json"),
+    format: str = typer.Option("terminal", "--format", help="terminal | json | sarif"),
     output: Path | None = typer.Option(None, "--output", help="Write report to file"),
     fail_on: str | None = typer.Option(None, "--fail-on", help="Override target fail-on"),
     registry_file: Path = typer.Option(DEFAULT_REGISTRY_PATH, "--registry", help="Registry YAML path"),
@@ -286,7 +289,7 @@ def mcp_test(
 def mcp_test_all(
     config_file: Path | None = typer.Option(None, "--config", help="Optional policy config"),
     tool: str | None = typer.Option(None, "--tool", help="Test only this tool"),
-    format: str = typer.Option("terminal", "--format", help="terminal | json"),
+    format: str = typer.Option("terminal", "--format", help="terminal | json | sarif"),
     output: Path | None = typer.Option(None, "--output", help="Write combined JSON report to file"),
     fail_on: str | None = typer.Option(None, "--fail-on", help="Override fail-on for all targets"),
     registry_file: Path = typer.Option(DEFAULT_REGISTRY_PATH, "--registry", help="Registry YAML path"),
@@ -299,6 +302,7 @@ def mcp_test_all(
         return
 
     combined: list[dict] = []
+    combined_sarif_runs: list[dict] = []
     any_failed_gate = False
 
     for name, target in targets.items():
@@ -319,6 +323,11 @@ def mcp_test_all(
         if format == "terminal":
             typer.echo(f"\n=== {name} ===")
             print_terminal_report(report)
+        elif format == "sarif":
+            sarif = build_sarif_report(report)
+            for run_payload in sarif["runs"]:
+                run_payload["automationDetails"] = {"id": name}
+                combined_sarif_runs.append(run_payload)
 
         combined.append(
             {
@@ -331,6 +340,17 @@ def mcp_test_all(
 
     if format == "json":
         payload = {"targets": combined}
+        text = json.dumps(payload, indent=2)
+        if output:
+            output.write_text(text + "\n", encoding="utf-8")
+        else:
+            typer.echo(text)
+    elif format == "sarif":
+        payload = {
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "version": "2.1.0",
+            "runs": combined_sarif_runs,
+        }
         text = json.dumps(payload, indent=2)
         if output:
             output.write_text(text + "\n", encoding="utf-8")
