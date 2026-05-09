@@ -1,15 +1,17 @@
 # MCPGuard Check Rules Reference
 
-Tai lieu nay la "rule catalog" de doc report nhanh va biet cach fix.
+This document is the rule catalog for interpreting MCPGuard findings and fixing issues quickly.
 
 ## Severity Levels
 
-- `critical`: risk cao nhat, can xu ly ngay
-- `high`: risk nghiem trong, nen fix truoc khi cho agent goi tool
-- `medium`: quality issue co the gay hanh vi khong on dinh
-- `low`: quality gap nho nhung nen harden
+- `critical`: highest risk, fix immediately before exposing tools to agents.
+- `high`: serious risk, should be fixed before production use.
+- `medium`: important quality or safety gap that may cause unstable behavior.
+- `low`: hardening gap; lower urgency but still recommended.
 
 ## Normalized Severity Mapping (Rule -> Severity)
+
+These mappings are enforced for risk scoring and fail-gate behavior:
 
 - `secret_leaked`: `critical`
 - `path_matches_denylist`: `high`
@@ -25,133 +27,133 @@ Tai lieu nay la "rule catalog" de doc report nhanh va biet cach fix.
 ## A. Schema Quality Rules
 
 `missing_tool_name` (`medium`)
-- Dieu kien: tool khong co ten.
-- Goi y fix: dat ten tool ro rang, on dinh.
+- Condition: tool has no name.
+- Fix: add an explicit, stable tool name.
 
 `missing_description` (`high`)
-- Dieu kien: tool khong co description.
-- Goi y fix: bo sung mo ta muc dich, dau vao, gioi han.
+- Condition: tool description is missing.
+- Fix: add clear purpose, inputs, limits, and safe usage notes.
 
 `description_too_short` (`medium`)
-- Dieu kien: description ngan hon `min_description_length`.
-- Goi y fix: viet description day du hon.
+- Condition: description length is lower than `min_description_length`.
+- Fix: expand description with intent and constraints.
 
 `missing_input_schema` (`medium`)
-- Dieu kien: khong co `inputSchema`.
-- Goi y fix: khai bao schema day du cho tool.
+- Condition: tool has no `inputSchema`.
+- Fix: define a complete input schema.
 
 `missing_schema` (`medium`)
-- Dieu kien: alias normalized cho `missing_input_schema` trong risk summary.
-- Goi y fix: khai bao schema day du cho tool.
+- Condition: normalized alias for `missing_input_schema` in risk summaries.
+- Fix: define a complete input schema.
 
 `no_properties_defined` (`medium`)
-- Dieu kien: `inputSchema.properties` thieu/invalid.
-- Goi y fix: khai bao properties ro rang.
+- Condition: `inputSchema.properties` is missing or invalid.
+- Fix: define typed input properties.
 
 `schema_invalid` (`high`)
-- Dieu kien: schema khong hop le/qua mo rong (normalized high-risk bucket).
-- Goi y fix: sua schema theo JSON Schema contract ro rang, co bounds.
+- Condition: schema is invalid or too permissive.
+- Fix: tighten schema contract and add explicit bounds.
 
 `missing_required_declaration` (`high`)
-- Dieu kien: thieu `inputSchema.required`.
-- Goi y fix: danh dau cac field bat buoc trong `required`.
+- Condition: `inputSchema.required` is missing.
+- Fix: declare required fields explicitly.
 
 `property_missing_type` (`medium`)
-- Dieu kien: property thieu `type` hoac schema property invalid.
-- Goi y fix: bo sung `type` cho moi field.
+- Condition: property schema is invalid or missing `type`.
+- Fix: add explicit `type` for each property.
 
 `number_missing_maximum` (`high`)
-- Dieu kien: field `number|integer` thieu `maximum` (khi policy yeu cau).
-- Goi y fix: dat upper bound.
+- Condition: numeric field (`number|integer`) has no `maximum` (when policy requires it).
+- Fix: add upper bounds.
 
 `number_missing_minimum` (`low`)
-- Dieu kien: field `number|integer` thieu `minimum`.
-- Goi y fix: dat lower bound.
+- Condition: numeric field has no `minimum`.
+- Fix: add lower bounds.
 
 `string_missing_maxlength` (`low`)
-- Dieu kien: field `string` thieu `maxLength`.
-- Goi y fix: dat max length phu hop.
+- Condition: string field has no `maxLength`.
+- Fix: add safe max length limits.
 
 `bounded_field_missing_maximum` (`high`)
-- Dieu kien: field ten `limit|count|page_size|max` thieu `maximum`.
-- Goi y fix: bound cac field de tranh abuse.
+- Condition: bounded field names (`limit|count|page_size|max`) have no `maximum`.
+- Fix: enforce explicit upper bounds.
 
 `allows_additional_properties` (`low`)
-- Dieu kien: `additionalProperties` khac `false`.
-- Goi y fix: set `additionalProperties: false`.
+- Condition: `additionalProperties` is not `false`.
+- Fix: set `additionalProperties: false` unless needed.
 
 ## B. Timeout Rules
 
 `timeout_exceeded` (`medium`)
-- Dieu kien: tool call vuot `timeout_ms`.
-- Goi y fix: toi uu tool logic, I/O, va fallback strategy.
+- Condition: tool call exceeds `timeout_ms`.
+- Fix: optimize tool latency and fail-fast behavior.
 
 `slow_response` (`low`)
-- Dieu kien: elapsed > `warn_after_ms` nhung chua timeout.
-- Goi y fix: profile va cai thien performance.
+- Condition: response time is above `warn_after_ms` but below timeout.
+- Fix: profile and improve performance.
 
 ## C. Fuzz/Runtime Robustness Rules
 
 `fuzz_server_crash` (`critical`)
-- Dieu kien: response cho thay server disconnect/crash khi fuzz.
-- Goi y fix: validate input va handle exception an toan.
+- Condition: server appears to crash/disconnect under malformed input.
+- Fix: validate input and harden exception handling.
 
 `stack_trace_exposed` (`high`)
-- Dieu kien: output/error co dau hieu stack trace noi bo.
-- Goi y fix: sanitize error message tra ve cho client.
+- Condition: output/error appears to expose internal stack traces.
+- Fix: sanitize runtime errors returned to clients.
 
 `poor_error_message` (`medium`)
-- Dieu kien: loi qua mo ho/qua ngan/empty.
-- Goi y fix: tra ve validation error co nghia, de debug duoc.
+- Condition: error output is empty, generic, or not actionable.
+- Fix: return meaningful validation errors.
 
 `fuzz_timeout` (`high`)
-- Dieu kien: fuzz call bi timeout.
-- Goi y fix: reject malformed input nhanh hon.
+- Condition: fuzz probe call times out.
+- Fix: reject malformed input faster.
 
 ## D. Secret Rules
 
 `secret_leaked` (`critical`)
-- Dieu kien: response match secret pattern.
-- Goi y fix: mask/redact secret, khong tra raw token/key.
+- Condition: response matches sensitive secret patterns.
+- Fix: redact/mask secrets; never return raw credentials.
 
 ## E. Permission Boundary Rules
 
 `path_outside_allowlist` (`high`)
-- Dieu kien: tool chap nhan/tra ve path nam ngoai `tools.<tool>.allow_paths`.
-- Goi y fix: chi cho phep doc path trong allowlist va reject path ngoai scope.
+- Condition: tool accepts/returns paths outside `tools.<tool>.allow_paths`.
+- Fix: enforce strict path allowlists.
 
 `path_matches_denylist` (`high`)
-- Dieu kien: tool chap nhan path nam trong `tools.<tool>.deny_paths`.
-- Goi y fix: block denylist truoc khi xu ly va tra ve loi authorization an toan.
+- Condition: tool accepts paths from `tools.<tool>.deny_paths`.
+- Fix: block denylisted paths before execution and return safe authorization errors.
 
 ## F. Prompt Injection Rules
 
 `prompt_injection_in_description` (`medium`)
-- Dieu kien: description tool co cum tu dang instruction injection (vd: ignore instructions, reveal system prompt, bypass policy).
-- Goi y fix: viet description theo style API contract, bo toan bo instruction mang tinh dieu huong agent.
+- Condition: tool description contains instruction-injection style phrases.
+- Fix: keep descriptions as API contract text, not agent-directive instructions.
 
 `prompt_injection_in_output` (`high`)
-- Dieu kien: output tool chua instruction injection hoac secret-exfiltration phrasing.
-- Goi y fix: sanitize output, loai bo hidden instruction va thong diep dieu huong agent.
+- Condition: tool output includes instruction-injection or secret-exfiltration phrasing.
+- Fix: sanitize output and remove hidden/instructional payloads.
 
-## G. Server-Level Warning Rules
+## G. Server-Level Rules
 
 `no_tools_discovered` (`low`)
-- Dieu kien: discovery thanh cong nhung tool list rong.
-- Goi y fix: kiem tra register tool va startup logic.
+- Condition: discovery succeeds but no tools are returned.
+- Fix: verify server startup and tool registration.
 
 `tool_not_found` (`low`)
-- Dieu kien: dung `--tool` nhung ten tool khong ton tai.
-- Goi y fix: doi ten tool cho dung hoac bo `--tool`.
+- Condition: `--tool` filter does not match any discovered tool.
+- Fix: use correct tool name or remove the filter.
 
-## How to Prioritize Fixing
+## Fixing Priority
 
-1. Fix toan bo `critical`.
-2. Fix `high` lien quan schema/input bounds/timeout.
-3. Giam `medium` de nang do on dinh.
-4. Hardening them qua `low`.
+1. Fix all `critical` findings.
+2. Fix `high` findings related to input bounds, prompt injection, and access boundaries.
+3. Reduce `medium` findings to improve stability.
+4. Harden remaining `low` findings.
 
 ## Notes
 
-- Rule catalog nay phan anh behavior hien tai cua code.
-- Severity + threshold se anh huong truc tiep den exit code khi dung `--fail-on`.
+- This catalog reflects current MCPGuard behavior.
+- Severity levels directly affect `--fail-on` exit behavior.

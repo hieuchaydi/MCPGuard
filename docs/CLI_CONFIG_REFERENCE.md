@@ -1,6 +1,6 @@
-# MCPGuard CLI, Config, CI, Docker Reference
+# MCPGuard CLI, Config, CI, and Docker Reference
 
-Tai lieu nay tap trung vao cach van hanh MCPGuard theo luong `basic-demo` va cach quan ly nhieu MCP target.
+This guide explains how to run MCPGuard in day-to-day workflows, manage multiple targets, and integrate in CI.
 
 ## 1. CLI Commands
 
@@ -9,7 +9,7 @@ Main scan command:
 mcpguard test [options]
 ```
 
-Init config:
+Initialize a starter config:
 ```bash
 mcpguard init
 ```
@@ -20,12 +20,12 @@ mcpguard mcp <subcommand> [options]
 ```
 
 Options (`mcpguard test`):
-- `--command`, `-c`: command MCP server (vi du `python server.py`)
-- `--config`: duong dan den file YAML config
-- `--tool`: chi test 1 tool theo ten
-- `--format`: `terminal` hoac `json`
-- `--output`: file output khi `--format json`
-- `--fail-on`: threshold fail gate (`low|medium|high|critical`)
+- `--command`, `-c`: MCP server command (for example, `python server.py`)
+- `--config`: path to `mcpguard.yaml`
+- `--tool`: test only one tool by name
+- `--format`: `terminal` or `json`
+- `--output`: write output file when `--format json`
+- `--fail-on`: fail gate threshold (`low|medium|high|critical`)
 
 MCP target subcommands:
 - `mcpguard mcp add <name> --command "..."`
@@ -36,18 +36,19 @@ MCP target subcommands:
 - `mcpguard mcp test-all`
 - `mcpguard mcp import-codex`
 
-Registry mac dinh: `mcpguard.servers.yaml` (co the override bang `--registry`).
+Default registry: `mcpguard.servers.yaml` (override with `--registry`).
 
 ## 2. Option Priority
 
-Thu tu uu tien:
+Precedence order:
 1. CLI overrides (`--command`, `--fail-on`)
-2. Gia tri trong YAML config
-3. Default trong code
+2. Values in YAML config
+3. Code defaults
 
 ## 3. Config Schema
 
-Mau `mcpguard.yaml`:
+Example `mcpguard.yaml`:
+
 ```yaml
 server:
   command: "python examples/basic_server/server.py"
@@ -91,124 +92,125 @@ checks:
 ```
 
 Field summary:
-- `server.command`: command de khoi tao MCP server
-- `policy.fail_on`: nguong fail gate cho exit code
-- `schema.*`: rule chinh cho schema-quality checks
-- `timeout.timeout_ms`: hard timeout cho moi tool call
-- `timeout.warn_after_ms`: warning threshold cho response cham
-- `secret.enabled`: bat/tat secret scan
-- `secret.patterns`: regex/literal can scan trong response
-- `tools.<tool>.allow_paths`: allowlist path cho tool (permission boundary)
-- `tools.<tool>.deny_paths`: denylist path cho tool
-- `tools.<tool>.network`: placeholder policy cho network boundary (rule se duoc mo rong tiep)
-- `checks.prompt_injection.enabled`: bat/tat prompt injection checks
-- `checks.prompt_injection.scan_description`: scan description/metadata truoc runtime probe
-- `checks.prompt_injection.scan_output`: scan output sau probe call
+- `server.command`: command used to start the MCP server
+- `policy.fail_on`: severity gate threshold for process exit code
+- `schema.*`: schema quality policy options
+- `timeout.timeout_ms`: hard timeout per tool call
+- `timeout.warn_after_ms`: warning threshold for slow calls
+- `secret.enabled`: enable/disable secret scanning
+- `secret.patterns`: regex/literal patterns to scan in responses
+- `tools.<tool>.allow_paths`: path allowlist policy for that tool
+- `tools.<tool>.deny_paths`: path denylist policy for that tool
+- `tools.<tool>.network`: placeholder for network-boundary policy
+- `checks.prompt_injection.enabled`: enable/disable prompt injection checks
+- `checks.prompt_injection.scan_description`: scan tool description/metadata
+- `checks.prompt_injection.scan_output`: scan runtime tool output
 
 ## 4. Exit Codes
 
-- `0`: khong vuot nguong fail gate
-- `1`: co finding vuot nguong `fail_on`
-- `2`: khong ket noi/discovery duoc MCP server
+- `0`: fail gate not reached
+- `1`: at least one finding reached/exceeded `fail_on`
+- `2`: MCP server connection/discovery failure
 
 Fail gate behavior:
-- `--fail-on low`: fail neu co finding low/medium/high/critical
-- `--fail-on medium`: fail neu co finding medium/high/critical
-- `--fail-on high`: fail neu co finding high/critical
-- `--fail-on critical`: fail chi khi co critical
+- `--fail-on low`: fail on `low|medium|high|critical`
+- `--fail-on medium`: fail on `medium|high|critical`
+- `--fail-on high`: fail on `high|critical`
+- `--fail-on critical`: fail only on `critical`
 
 ## 5. Common Usage Recipes
 
-Shortest smoke demo:
+Quick smoke test:
 ```bash
 mcpguard mcp test basic-demo
 ```
 
-Test bang command truc tiep:
+Run with a direct command:
 ```bash
 mcpguard test --command "python examples/basic_server/server.py"
 ```
 
-Test bang config:
+Run with config file:
 ```bash
 mcpguard test --config mcpguard.yaml
 ```
 
-Chi test 1 tool:
+Test one specific tool:
 ```bash
 mcpguard test --command "python examples/basic_server/server.py" --tool echo
 ```
 
-JSON stdout:
+JSON to stdout:
 ```bash
 mcpguard mcp test basic-demo --format json
 ```
 
-JSON file:
+JSON to file:
 ```bash
 mcpguard mcp test basic-demo --format json --output basic-demo-report.json
 ```
 
-JSON vulnerable demo:
+Vulnerable demo in JSON:
 ```bash
 mcpguard mcp test vulnerable-demo --config mcpguard.yaml --format json
 ```
 
-Fail gate:
+Fail gate example:
 ```bash
 mcpguard mcp test basic-demo --fail-on high
 ```
 
-## 6. Manage/Test Multiple MCP Targets
+## 6. Manage and Test Multiple MCP Targets
 
-Them target:
+Add a target:
 ```bash
 mcpguard mcp add my-server --command "python path/to/server.py" --fail-on high --tag team --notes "team-owned server"
 ```
 
-List target:
+List targets:
 ```bash
 mcpguard mcp list
 ```
 
-Xem chi tiet 1 target:
+Show one target:
 ```bash
 mcpguard mcp get my-server
 ```
 
-Xoa target:
+Remove a target:
 ```bash
 mcpguard mcp remove my-server
 ```
 
-Test 1 target da luu:
+Test one saved target:
 ```bash
 mcpguard mcp test my-server --format terminal
 ```
 
-Test toan bo target:
+Test all saved targets:
 ```bash
 mcpguard mcp test-all --format json --output mcpguard-all.json
 ```
 
-Demo fail nhanh voi target co chu y de security:
+Quick security demo:
 ```bash
 mcpguard mcp test vulnerable-demo --config mcpguard.yaml --fail-on high
 ```
 
-Import target tu Codex config:
+Import from Codex config:
 ```bash
 mcpguard mcp import-codex
 ```
 
-Import voi config custom + overwrite:
+Import from custom config and overwrite existing:
 ```bash
 mcpguard mcp import-codex --codex-config C:/path/to/config.toml --overwrite
 ```
 
 ## 7. Registry File Format
 
-Vi du `mcpguard.servers.yaml`:
+Example `mcpguard.servers.yaml`:
+
 ```yaml
 servers:
   basic-demo:
@@ -223,22 +225,22 @@ servers:
 
 ## 8. CI Examples
 
-Basic CI gate:
+Basic gate:
 ```bash
 mcpguard test --command "python server.py" --fail-on high
 ```
 
-Keep JSON artifact:
+Write JSON artifact:
 ```bash
 mcpguard test --command "python server.py" --format json --output mcpguard-report.json --fail-on high
 ```
 
-Repo da co workflow mau:
+A ready workflow is included:
 - `.github/workflows/mcpguard.yml`
 
 ## 9. JSON Output Contract
 
-`--format json` tra ve object on dinh:
+`--format json` returns a stable object:
 
 ```json
 {
@@ -277,7 +279,7 @@ Run tests:
 docker run --rm mcpguard-dev python -m pytest
 ```
 
-Run quick terminal demo (no output file):
+Run quick terminal demo:
 ```bash
 docker run --rm mcpguard-dev mcpguard mcp test basic-demo
 ```
@@ -295,18 +297,18 @@ docker run --rm -v "%cd%:/workspace" -w /workspace mcpguard-dev sh -lc "pip inst
 ## 11. Troubleshooting
 
 `Connection error: Could not infer a valid transport`
-- Dung command theo format MCPGuard parse duoc, vi du:
+- Use a supported command format, for example:
   - `python server.py`
   - `node server.js`
-  - `http://...` (neu server transport HTTP)
+  - `http://...` (HTTP transport)
 
 `No saved targets in mcpguard.servers.yaml`
-- Them target qua `mcpguard mcp add ...` hoac tao lai registry file.
+- Add targets with `mcpguard mcp add ...` or recreate the registry.
 
-Terminal output bi loi encoding tren Windows
-- Chuyen qua `--format json` de ghi artifact
-- Hoac chay terminal UTF-8
+Terminal encoding issues on Windows
+- Use `--format json` and inspect the output file.
+- Or run your terminal in UTF-8 mode.
 
-`mcpguard mcp import-codex` khong import duoc target nao
-- Kiem tra file Codex config co section `[mcp_servers]`
-- Kiem tra moi server co `command` (va optional `args`) hoac `transport.command`
+`mcpguard mcp import-codex` imports nothing
+- Verify `[mcp_servers]` exists in the Codex config.
+- Verify each server has `command` (and optional `args`) or `transport.command`.

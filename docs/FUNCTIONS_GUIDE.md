@@ -1,179 +1,214 @@
 # MCPGuard Functions Guide
 
-Tai lieu nay mo ta chi tiet tung chuc nang cua MCPGuard theo luong runtime that te.
+This document describes MCPGuard internals and the runtime flow used during scans.
 
 ## 1. End-to-End Flow
 
-1. Nhan input tu CLI (`--command` hoac `--config`).
+1. Accept CLI input (`--command` or `--config`).
 2. Load policy/config (`load_config`).
-3. Connect MCP server (`connect` trong `client.py`).
-4. Discover tools (`discover_tools`, timeout 5s).
-5. Chay checks cho tung tool theo thu tu:
+3. Connect to MCP server (`connect` in `client.py`).
+4. Discover tools (`discover_tools`, 5s discovery timeout).
+5. Run checks per tool in order:
    - `check_schema_quality`
+   - `check_prompt_injection_description`
    - `check_timeout`
-   - `check_fuzz_inputs` (kem secret scan)
-6. Gom findings -> score/status (`Report` model).
-7. In terminal report hoac xuat JSON report.
-8. Tinh exit code theo `fail_on`.
+   - `check_prompt_injection_output`
+   - `check_permission_boundary`
+   - `check_fuzz_inputs` (includes secret scan)
+6. Aggregate findings into `Report` / `ToolReport`.
+7. Build terminal or JSON output with normalized risk summary.
+8. Apply fail gate based on `--fail-on` threshold.
 
 ## 2. Core Modules
 
 ### 2.1 `src/mcpguard/models.py`
 
-Model du lieu trung tam:
-- `Severity`: `critical`, `high`, `medium`, `low`, `warning`
-- `Finding`: 1 vi pham/risk tren 1 tool
-- `ToolReport`: findings cua 1 tool
-- `Report`: report tong cua server
+Primary data models:
+- `Severity`
+- `Finding`
+- `ToolReport`
+- `Report`
 
-Logic quan trong:
-- Score luon clamp ve `>= 0`.
-- Status mapping:
-  - `PASS` >= 90
-  - `WARN` >= 70
-  - `FAIL` >= 50
-  - `CRITICAL` < 50
+Key behavior:
+- Tool-level status, risk level, and risk score are derived from findings.
+- Report exposes:
+  - `risk_score`
+  - `overall_risk_level`
+  - `severity_summary`
+  - `status`
 
-### 2.2 `src/mcpguard/config.py`
+### 2.2 `src/mcpguard/risk.py`
+
+Central risk engine:
+- rule -> normalized severity mapping
+- severity weights
+- fail-threshold evaluation
+- recommendation mapping
+- helper serializers for tool-level JSON summaries
+
+Normalized severity set:
+- `low`
+- `medium`
+- `high`
+- `critical`
+
+### 2.3 `src/mcpguard/config.py`
 
 Policy models:
 - `SchemaPolicy`
 - `TimeoutPolicy`
 - `SecretPolicy`
+- `ToolPolicy`
+- `PromptInjectionPolicy`
+- `ChecksPolicy`
 - `MCPGuardConfig`
 
-Nguon config:
-- `mcpguard.yaml` (neu co)
-- CLI overrides (`--command`, `--fail-on`) uu tien cao hon file
+Config sources:
+- `mcpguard.yaml` (if provided)
+- CLI overrides (`--command`, `--fail-on`) take precedence
 
-Secret patterns:
-- Co san cac pattern thuong gap: OpenAI/GitHub/Slack/AWS/token/password/private key
-- Co the mo rong them pattern rieng theo to chuc
+### 2.4 `src/mcpguard/client.py`
 
-### 2.3 `src/mcpguard/client.py`
+Purpose:
+- connect to MCP servers through `fastmcp.Client`
+- infer transport from command or URL
+- reduce startup noise on stdio transport
 
-Muc tieu:
-- Ket noi MCP server qua `fastmcp.Client`
-- Tuong thich command string va script path
-- Giam noise banner/log khi khoi tao stdio transport
+Supports:
+- `python file.py`
+- `node file.js`
+- URL transports (`http/https/ws/wss`)
+- direct script paths
 
-Chi tiet:
-- Ho tro infer transport cho:
-  - `python file.py`
-  - `node file.js`
-  - URL (`http/https/ws/wss`)
-  - script path truc tiep
-- `discover_tools` co timeout discovery rieng 5 giay
-- Loi startup/discovery duoc wrap thanh `MCPConnectionError`
+Errors are wrapped as `MCPConnectionError`.
 
-### 2.4 `src/mcpguard/runner.py`
+### 2.5 `src/mcpguard/runner.py`
 
-Orchestration:
-- Tao `Report(server_command=...)`
-- Discover tools
-- Xu ly edge cases:
-  - Tool filter khong tim thay -> `tool_not_found` (warning)
-  - Server tra tool list rong -> `no_tools_discovered` (warning)
-- Chay checks cho moi tool va append vao `report.tools`
+Orchestration layer:
+- initializes `Report(server_command=...)`
+- handles discovery edge cases:
+  - `tool_not_found`
+  - `no_tools_discovered`
+- executes all checks for each discovered tool
 
-### 2.5 `src/mcpguard/checks/schema_quality.py`
+### 2.6 `src/mcpguard/checks/schema_quality.py`
 
-Muc dich:
-- Danh gia contract quality cua tool schema
+Purpose:
+- validate schema contract quality
 
-Diem check:
-- Ten tool, description, input schema, properties, required
-- Kieu du lieu tung field
-- Boundaries cho number/string
-- Cac field bounded (`limit/count/page_size/max`)
-- `additionalProperties: false`
+Coverage:
+- tool name/description/schema presence
+- properties/required declarations
+- field type correctness
+- numeric/string bounds
+- bounded fields (`limit|count|page_size|max`)
+- `additionalProperties` hardening
 
-### 2.6 `src/mcpguard/checks/timeout_check.py`
+### 2.7 `src/mcpguard/checks/prompt_injection.py`
 
-Muc dich:
-- Danh gia response time voi input hop le toi thieu
+Purpose:
+- detect prompt-injection style phrasing in:
+  - tool descriptions
+  - runtime output
 
-Cach hoat dong:
-- Build payload hop le toi thieu tu schema (`default/examples/enum/type fallback`)
-- Call tool voi `asyncio.wait_for(timeout_ms)`
-- Sinh finding:
-  - `timeout_exceeded` (high)
-  - `slow_response` (warning)
+Rules:
+- `prompt_injection_in_description`
+- `prompt_injection_in_output`
 
-### 2.7 `src/mcpguard/checks/fuzz_inputs.py`
+Policy toggles:
+- `checks.prompt_injection.enabled`
+- `checks.prompt_injection.scan_description`
+- `checks.prompt_injection.scan_output`
 
-Muc dich:
-- Thu dau vao sai kieu vo hai de test resilience
+### 2.8 `src/mcpguard/checks/timeout_check.py`
 
-Fuzz strategy:
-- Luon gom `{}` + payload sai type theo tung field type
-- Khong dung payload nguy hiem (khong traversal/shell injection)
+Purpose:
+- measure tool responsiveness with minimal valid inputs
 
-Detection:
+Behavior:
+- builds probe payload from schema (`default/examples/enum/type fallback`)
+- wraps call in `asyncio.wait_for(timeout_ms)`
+- emits:
+  - `timeout_exceeded`
+  - `slow_response`
+
+### 2.9 `src/mcpguard/checks/permission_boundary.py`
+
+Purpose:
+- enforce tool-level path access boundaries
+
+Rules:
+- `path_outside_allowlist`
+- `path_matches_denylist`
+
+Policy keys:
+- `tools.<tool>.allow_paths`
+- `tools.<tool>.deny_paths`
+
+### 2.10 `src/mcpguard/checks/fuzz_inputs.py`
+
+Purpose:
+- run harmless malformed inputs to test robustness
+
+Detects:
 - `fuzz_server_crash`
 - `stack_trace_exposed`
 - `poor_error_message`
 - `fuzz_timeout`
-- Secret scan tren moi response/error text neu `secret.enabled=true`
+- secret leaks in output/error text
 
-### 2.8 `src/mcpguard/checks/secret_scan.py`
+### 2.11 `src/mcpguard/checks/secret_scan.py`
 
-Muc dich:
-- Tim pattern nhay cam trong response text
+Purpose:
+- detect sensitive token/credential patterns in text
 
-Output:
-- Moi pattern match -> `secret_leaked` (critical)
+Rule:
+- `secret_leaked`
 
-### 2.9 `src/mcpguard/report/terminal.py`
+### 2.12 `src/mcpguard/report/terminal.py`
 
-Chuc nang:
-- Header, score bar, status, summary counts
-- Group finding theo tool
-- Sort tool theo highest severity
-- Sinh recommendation theo rule id
-- Tu dong fallback ASCII neu terminal khong support glyph unicode
+Purpose:
+- render human-readable terminal summary
 
-### 2.10 `src/mcpguard/report/json_report.py`
+Shows:
+- overall status
+- overall risk level
+- severity counts
+- per-tool risk level and score
+- finding severity labels
+- rule-based recommendations
 
-Chuc nang:
-- Serialize report sang JSON
-- Ho tro in stdout hoac ghi file (`--output`)
+### 2.13 `src/mcpguard/report/json_report.py`
 
-### 2.11 `src/mcpguard/cli.py`
+Purpose:
+- emit stable machine-readable JSON output for CI/CD
 
-Command:
-- `mcpguard test ...`
+Schema includes:
+- target/status/overall_risk_level
+- summary counts
+- per-tool risk summaries
+- per-finding recommendation
 
-Options:
-- `--command/-c`
-- `--config`
-- `--tool`
-- `--format`
-- `--output`
-- `--fail-on`
+### 2.14 `src/mcpguard/cli.py`
 
-Exit code:
-- `0`: pass gate
-- `1`: vuot gate
-- `2`: connection/discovery error
+Command groups:
+- `mcpguard test`
+- `mcpguard mcp ...`
+- `mcpguard init`
 
-### 2.12 `src/mcpguard/registry.py`
+Exit codes:
+- `0`: fail gate not reached
+- `1`: fail gate reached
+- `2`: connection/discovery failure
 
-Chuc nang:
-- Quan ly danh sach MCP targets trong file YAML (`mcpguard.servers.yaml`).
-- CRUD targets (`add/list/get/remove`) cho quy trinh test nhieu server.
-- Import targets tu Codex config (`~/.codex/config.toml`).
+### 2.15 `src/mcpguard/registry.py`
 
-Data model:
-- `ManagedServer`:
-  - `command`
-  - `fail_on`
-  - `tags`
-  - `notes`
-- `ManagedRegistry`:
-  - `servers: dict[name -> ManagedServer]`
+Purpose:
+- manage MCP targets in `mcpguard.servers.yaml`
+- CRUD targets for multi-server workflows
+- import targets from Codex config (`~/.codex/config.toml`)
 
-CLI lien quan:
+Main subcommands:
 - `mcpguard mcp add/list/get/remove`
 - `mcpguard mcp test`
 - `mcpguard mcp test-all`
@@ -182,15 +217,26 @@ CLI lien quan:
 ## 3. Examples Directory
 
 ### `examples/basic_server`
-- Minimal one-tool server (`echo`) de smoke test nhanh.
-- La demo mac dinh cho command `mcpguard mcp test basic-demo`.
-- Muc tieu: quay video demo ngan va validate luong runtime end-to-end.
+- Minimal one-tool server (`echo`) for quick smoke tests.
+- Default demo target for `mcpguard mcp test basic-demo`.
+
+### `examples/vulnerable_server`
+- Intentionally unsafe server for failure demos.
+- Useful for validating risk summaries and CI fail gates.
 
 ## 4. Test Coverage
 
-Hien co test cho:
+The suite includes tests for:
 - schema quality checks
-- fuzz input generation va phan ung
+- timeout checks
+- fuzz checks
+- prompt injection checks
+- permission boundary checks
 - secret scan patterns
+- risk mapping and scoring
+- fail gate thresholds
+- JSON output contract
+- terminal report rendering labels
 
-Chua co integration test full runner/cli trong test suite.
+Current gap:
+- full end-to-end CLI integration tests with real subprocess lifecycle are still limited.
