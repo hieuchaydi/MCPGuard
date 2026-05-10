@@ -57,6 +57,17 @@ mcpguard init
 mcpguard mcp test basic-demo
 ```
 
+Production quality gates:
+```bash
+python -m pip install -r requirements.lock
+python -m pip install -e .
+ruff check .
+mypy src
+bandit -c pyproject.toml -r src/mcpguard
+pytest -q
+python -m build --wheel
+```
+
 Generate JSON report:
 
 ```bash
@@ -190,6 +201,8 @@ rules:
 ## CI Integration
 
 A ready workflow is included at `.github/workflows/mcpguard.yml`.
+A release workflow is included at `.github/workflows/release.yml`.
+A security workflow is included at `.github/workflows/security.yml`.
 
 Minimal usage in CI:
 
@@ -202,6 +215,33 @@ JSON artifact in CI:
 ```bash
 mcpguard mcp test basic-demo --format json --output mcpguard-report.json
 ```
+
+Release note:
+- Tag format: `vX.Y.Z` (example: `v0.2.0`)
+- Optional secret for PyPI publish: `PYPI_API_TOKEN`
+- Release also publishes signed GHCR image + provenance attestation.
+
+Ops docs:
+- `docs/PRODUCTION_RUNBOOK.md`
+- `deploy/docker-compose.prod.yml`
+- `deploy/k8s/mcpguard-cronjob.yaml`
+
+## Production Container
+
+Build runtime image:
+```bash
+docker build -t mcpguard:latest .
+```
+
+Run CLI from container:
+```bash
+docker run --rm mcpguard:latest mcp test basic-demo --fail-on high
+```
+
+Container hardening included:
+- multi-stage build (build wheel then runtime install)
+- non-root runtime user (`uid=10001`)
+- minimal runtime entrypoint (`mcpguard`)
 
 ## Positioning vs Related Projects
 

@@ -35,6 +35,40 @@ jobs:
           sarif_file: mcpguard.sarif
 ```
 
+## Production Release Workflow
+
+`release.yml` handles tagged releases:
+- trigger: tag push matching `v*.*.*` (for example: `v0.2.0`)
+- builds `sdist` and `wheel`
+- validates artifacts with `twine check`
+- publishes GitHub Release artifacts
+- optionally publishes to PyPI if `PYPI_API_TOKEN` is configured
+- publishes GHCR image
+- signs image with Cosign (keyless/OIDC)
+- publishes provenance attestations for artifacts and image
+
+Minimal release flow:
+1. Merge to `main`
+2. Create tag `vX.Y.Z`
+3. Push tag and let workflow publish artifacts
+
+## Supply-Chain Security Workflow
+
+`security.yml` adds baseline supply-chain checks:
+- generates SPDX SBOM (`sbom.spdx.json`)
+- scans repository filesystem with Trivy (`CRITICAL,HIGH`)
+- builds Docker image and scans image with Trivy (`CRITICAL,HIGH`)
+- uploads SARIF results to GitHub code scanning
+
+## Reproducible Dependency Installs
+
+CI installs dependencies using `requirements.lock` first, then installs the local package:
+
+```bash
+python -m pip install -r requirements.lock
+python -m pip install -e .
+```
+
 ## Pre-Commit Hook
 
 ```yaml
