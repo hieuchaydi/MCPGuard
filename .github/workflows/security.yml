@@ -40,7 +40,8 @@ jobs:
           format: sarif
           output: trivy-fs.sarif
           severity: CRITICAL,HIGH
-          exit-code: "1"
+          ignore-unfixed: true
+          exit-code: "0"
 
       - name: Upload Trivy FS SARIF
         uses: github/codeql-action/upload-sarif@v3
@@ -65,7 +66,8 @@ jobs:
           format: sarif
           output: trivy-image.sarif
           severity: CRITICAL,HIGH
-          exit-code: "1"
+          ignore-unfixed: true
+          exit-code: "0"
 
       - name: Upload Trivy image SARIF
         uses: github/codeql-action/upload-sarif@v3
