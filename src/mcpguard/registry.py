@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Used only for command string quoting, not process execution.
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
@@ -165,7 +167,7 @@ def _join_command(command: str, args: Any) -> str:
     cmd = command.strip()
     if isinstance(args, list):
         safe_args = [str(arg) for arg in args]
-        return " ".join([cmd, *safe_args]).strip()
+        return subprocess.list2cmdline([cmd, *safe_args]).strip()
     return cmd
 
 

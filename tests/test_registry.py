@@ -101,3 +101,25 @@ fail_on = "critical"
     servers = list_servers(registry_file)
     assert servers["alpha"].command == "python changed.py"
     assert servers["alpha"].fail_on == "critical"
+
+
+def test_import_codex_servers_quotes_args_with_spaces(tmp_path: Path):
+    codex_config = tmp_path / "codex.toml"
+    registry_file = tmp_path / "servers.yaml"
+    codex_config.write_text(
+        """
+[mcp_servers.spaced]
+command = "python"
+args = ["server with space.py", "--name", "demo target"]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    import_codex_servers(
+        codex_config_path=codex_config,
+        registry_path=registry_file,
+        overwrite=False,
+    )
+
+    servers = list_servers(registry_file)
+    assert servers["spaced"].command == 'python "server with space.py" --name "demo target"'

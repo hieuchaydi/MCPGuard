@@ -18,6 +18,7 @@ def test_schema_quality_reports_missing_description_and_schema(make_tool):
     rules = {f.rule for f in findings}
     assert "missing_description" in rules
     assert "missing_input_schema" in rules
+    assert [f.rule for f in findings].count("missing_schema") == 0
 
 
 def test_schema_quality_reports_missing_required(make_tool):
@@ -60,3 +61,48 @@ def test_schema_quality_reports_additional_properties(make_tool):
     tool = make_tool(input_schema=schema)
     findings = check_schema_quality(tool, SchemaPolicy())
     assert any(f.rule == "allows_additional_properties" for f in findings)
+
+
+def test_schema_quality_reports_invalid_json_schema(make_tool):
+    schema = {
+        "type": "object",
+        "properties": {"query": {"type": 123}},
+        "required": ["query"],
+        "additionalProperties": False,
+    }
+    tool = make_tool(input_schema=schema)
+
+    findings = check_schema_quality(tool, SchemaPolicy())
+
+    assert any(f.rule == "schema_invalid" for f in findings)
+
+
+def test_schema_quality_reports_required_fields_missing_from_properties(make_tool):
+    schema = {
+        "type": "object",
+        "properties": {"query": {"type": "string", "maxLength": 100}},
+        "required": ["query", "missing"],
+        "additionalProperties": False,
+    }
+    tool = make_tool(input_schema=schema)
+
+    findings = check_schema_quality(tool, SchemaPolicy())
+
+    assert any(
+        f.rule == "schema_invalid" and "required contains fields" in f.message
+        for f in findings
+    )
+
+
+def test_schema_quality_accepts_json_schema_union_types(make_tool):
+    schema = {
+        "type": "object",
+        "properties": {"query": {"type": ["string", "null"], "maxLength": 100}},
+        "required": ["query"],
+        "additionalProperties": False,
+    }
+    tool = make_tool(input_schema=schema)
+
+    findings = check_schema_quality(tool, SchemaPolicy())
+
+    assert findings == []

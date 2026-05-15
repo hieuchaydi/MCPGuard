@@ -8,6 +8,7 @@ from typing import Any
 
 from mcpguard.config import MCPGuardConfig
 from mcpguard.checks.secret_scan import scan_for_secrets
+from mcpguard.checks.timeout_check import build_minimal_valid_input
 from mcpguard.models import Finding, Severity
 
 STACK_TRACE_PATTERNS = [
@@ -41,6 +42,21 @@ def _input_schema(tool: Any) -> dict[str, Any] | None:
     return None
 
 
+def _append_unique_payload(payloads: list[dict], payload: dict) -> None:
+    key = json.dumps(payload, sort_keys=True, default=str)
+    existing = {json.dumps(item, sort_keys=True, default=str) for item in payloads}
+    if key not in existing:
+        payloads.append(payload)
+
+
+def _type_names(value: Any) -> set[str]:
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, list):
+        return {item for item in value if isinstance(item, str)}
+    return set()
+
+
 def generate_fuzz_inputs(tool: Any) -> list[dict]:
     """Generate harmless malformed inputs for resilience testing."""
     inputs: list[dict] = [{}]
@@ -49,26 +65,36 @@ def generate_fuzz_inputs(tool: Any) -> list[dict]:
         return inputs
 
     props = schema["properties"]
+    base_payload = build_minimal_valid_input(tool)
+    extra_payload = dict(base_payload)
+    extra_payload["__mcpguard_unexpected"] = "unexpected"
+    _append_unique_payload(inputs, extra_payload)
+
     for name, prop_schema_raw in props.items():
         if not isinstance(prop_schema_raw, Mapping):
             continue
-        field_type = prop_schema_raw.get("type")
+        field_types = _type_names(prop_schema_raw.get("type"))
 
-        if field_type == "string":
-            inputs.append({name: 12345})
-            inputs.append({name: ""})
-            inputs.append({name: None})
-        elif field_type in ("number", "integer"):
-            inputs.append({name: -1})
-            inputs.append({name: 0})
-            inputs.append({name: 999999})
-            inputs.append({name: "not_a_number"})
-        elif field_type == "boolean":
-            inputs.append({name: "true"})
-            inputs.append({name: 1})
-        elif field_type == "array":
-            inputs.append({name: []})
-            inputs.append({name: "not_array"})
+        def mutated(value: Any, field_name: str = str(name)) -> dict:
+            payload = dict(base_payload)
+            payload[field_name] = value
+            return payload
+
+        if "string" in field_types:
+            _append_unique_payload(inputs, mutated(12345))
+            _append_unique_payload(inputs, mutated(""))
+            _append_unique_payload(inputs, mutated(None))
+        elif field_types & {"number", "integer"}:
+            _append_unique_payload(inputs, mutated(-1))
+            _append_unique_payload(inputs, mutated(0))
+            _append_unique_payload(inputs, mutated(999999))
+            _append_unique_payload(inputs, mutated("not_a_number"))
+        elif "boolean" in field_types:
+            _append_unique_payload(inputs, mutated("true"))
+            _append_unique_payload(inputs, mutated(1))
+        elif "array" in field_types:
+            _append_unique_payload(inputs, mutated([]))
+            _append_unique_payload(inputs, mutated("not_array"))
 
     return inputs
 

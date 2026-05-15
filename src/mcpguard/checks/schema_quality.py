@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+from jsonschema.exceptions import SchemaError  # type: ignore[import-untyped]
+
 from mcpguard.config import SchemaPolicy
 from mcpguard.models import Finding, Severity
 
@@ -22,6 +25,21 @@ def _get_input_schema(tool: Any) -> dict[str, Any] | None:
     if isinstance(schema, Mapping):
         return dict(schema)
     return None
+
+
+def _type_names(value: Any) -> set[str]:
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, list):
+        return {item for item in value if isinstance(item, str)}
+    return set()
+
+
+def _add_unique(findings: list[Finding], finding: Finding) -> None:
+    key = (finding.rule, finding.message, finding.tool_name)
+    existing = {(f.rule, f.message, f.tool_name) for f in findings}
+    if key not in existing:
+        findings.append(finding)
 
 
 def check_schema_quality(tool: Any, policy: SchemaPolicy) -> list[Finding]:
@@ -72,22 +90,40 @@ def check_schema_quality(tool: Any, policy: SchemaPolicy) -> list[Finding]:
                 message="Tool does not define inputSchema.",
             )
         )
-        findings.append(
-            Finding(
-                tool_name=tool_name,
-                severity=Severity.MEDIUM,
-                rule="missing_schema",
-                message="Tool does not define inputSchema.",
-            )
-        )
         return findings
 
     if not input_schema:
         return findings
 
+    try:
+        Draft202012Validator.check_schema(input_schema)
+    except SchemaError as exc:
+        _add_unique(
+            findings,
+            Finding(
+                tool_name=tool_name,
+                severity=Severity.HIGH,
+                rule="schema_invalid",
+                message=f"inputSchema is not valid JSON Schema: {exc.message}",
+            ),
+        )
+
+    schema_types = _type_names(input_schema.get("type"))
+    if "object" not in schema_types:
+        _add_unique(
+            findings,
+            Finding(
+                tool_name=tool_name,
+                severity=Severity.HIGH,
+                rule="schema_invalid",
+                message="inputSchema.type should include 'object'.",
+            ),
+        )
+
     properties = input_schema.get("properties")
     if not isinstance(properties, Mapping):
-        findings.append(
+        _add_unique(
+            findings,
             Finding(
                 tool_name=tool_name,
                 severity=Severity.MEDIUM,
@@ -95,7 +131,8 @@ def check_schema_quality(tool: Any, policy: SchemaPolicy) -> list[Finding]:
                 message="inputSchema.properties is missing or invalid.",
             )
         )
-        findings.append(
+        _add_unique(
+            findings,
             Finding(
                 tool_name=tool_name,
                 severity=Severity.HIGH,
@@ -115,6 +152,20 @@ def check_schema_quality(tool: Any, policy: SchemaPolicy) -> list[Finding]:
                 message="inputSchema.required is missing.",
             )
         )
+    elif isinstance(required, list):
+        invalid_required = [
+            item for item in required if not isinstance(item, str) or item not in properties
+        ]
+        if invalid_required:
+            _add_unique(
+                findings,
+                Finding(
+                    tool_name=tool_name,
+                    severity=Severity.HIGH,
+                    rule="schema_invalid",
+                    message="inputSchema.required contains fields not defined in properties.",
+                ),
+            )
 
     for prop_name, prop_schema_raw in properties.items():
         if not isinstance(prop_schema_raw, Mapping):
@@ -129,8 +180,8 @@ def check_schema_quality(tool: Any, policy: SchemaPolicy) -> list[Finding]:
             continue
 
         prop_schema = dict(prop_schema_raw)
-        prop_type = prop_schema.get("type")
-        if not prop_type:
+        prop_types = _type_names(prop_schema.get("type"))
+        if not prop_types:
             findings.append(
                 Finding(
                     tool_name=tool_name,
@@ -141,7 +192,7 @@ def check_schema_quality(tool: Any, policy: SchemaPolicy) -> list[Finding]:
             )
             continue
 
-        if prop_type in {"number", "integer"}:
+        if prop_types & {"number", "integer"}:
             if policy.require_max_for_numbers and "maximum" not in prop_schema:
                 findings.append(
                     Finding(
@@ -161,7 +212,7 @@ def check_schema_quality(tool: Any, policy: SchemaPolicy) -> list[Finding]:
                     )
                 )
 
-        if prop_type == "string" and "maxLength" not in prop_schema:
+        if "string" in prop_types and "maxLength" not in prop_schema:
             findings.append(
                 Finding(
                     tool_name=tool_name,

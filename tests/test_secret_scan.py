@@ -23,3 +23,20 @@ def test_secret_scan_no_match_returns_empty():
     response = "nothing sensitive here"
     findings = scan_for_secrets("get_config", response, patterns)
     assert findings == []
+
+
+def test_secret_scan_treats_invalid_regex_as_literal():
+    findings = scan_for_secrets("get_config", "value contains [literal", ["[literal"])
+    assert len(findings) == 1
+    assert findings[0].rule == "secret_leaked"
+
+
+def test_secret_scan_deduplicates_patterns_and_does_not_echo_pattern():
+    findings = scan_for_secrets(
+        "get_config",
+        "token=abc",
+        ["token=", "token="],
+    )
+
+    assert len(findings) == 1
+    assert "token=" not in findings[0].message

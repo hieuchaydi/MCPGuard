@@ -24,9 +24,43 @@ def _input_schema(tool: Any) -> dict[str, Any] | None:
     return None
 
 
-def _value_from_schema(schema: dict[str, Any]) -> Any:
+def _type_names(value: Any) -> set[str]:
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, list):
+        return {item for item in value if isinstance(item, str)}
+    return set()
+
+
+def _bounded_number(schema: dict[str, Any], *, integer: bool) -> int | float:
+    candidate: int | float = 1
+
+    minimum = schema.get("minimum")
+    if isinstance(minimum, (int, float)):
+        candidate = max(candidate, minimum)
+
+    exclusive_minimum = schema.get("exclusiveMinimum")
+    if isinstance(exclusive_minimum, (int, float)):
+        candidate = max(candidate, exclusive_minimum + 1)
+
+    maximum = schema.get("maximum")
+    if isinstance(maximum, (int, float)) and candidate > maximum:
+        candidate = maximum
+
+    exclusive_maximum = schema.get("exclusiveMaximum")
+    if isinstance(exclusive_maximum, (int, float)) and candidate >= exclusive_maximum:
+        candidate = exclusive_maximum - 1
+
+    if integer:
+        return int(candidate)
+    return candidate
+
+
+def _value_from_schema(schema: dict[str, Any], *, depth: int = 0) -> Any:
     if "default" in schema:
         return schema["default"]
+    if "const" in schema:
+        return schema["const"]
     examples = schema.get("examples")
     if isinstance(examples, list) and examples:
         return examples[0]
@@ -34,19 +68,44 @@ def _value_from_schema(schema: dict[str, Any]) -> Any:
     if isinstance(enum, list) and enum:
         return enum[0]
 
-    field_type = schema.get("type")
-    if field_type == "string":
-        return "x"
-    if field_type == "integer":
-        return 1
-    if field_type == "number":
-        return 1
-    if field_type == "boolean":
+    field_types = _type_names(schema.get("type"))
+    if "string" in field_types:
+        min_length = schema.get("minLength", 1)
+        max_length = schema.get("maxLength")
+        if not isinstance(min_length, int) or min_length < 0:
+            min_length = 1
+        length = max(1, min_length)
+        if isinstance(max_length, int):
+            length = min(length, max_length)
+        return "x" * max(0, length)
+    if "integer" in field_types:
+        return _bounded_number(schema, integer=True)
+    if "number" in field_types:
+        return _bounded_number(schema, integer=False)
+    if "boolean" in field_types:
         return False
-    if field_type == "array":
-        return []
-    if field_type == "object":
-        return {}
+    if "array" in field_types:
+        min_items = schema.get("minItems", 0)
+        if not isinstance(min_items, int) or min_items < 0:
+            min_items = 0
+        item_schema = schema.get("items")
+        if depth >= 3 or not isinstance(item_schema, Mapping):
+            return []
+        item_value = _value_from_schema(dict(item_schema), depth=depth + 1)
+        return [item_value for _ in range(min_items)]
+    if "object" in field_types:
+        if depth >= 3:
+            return {}
+        properties = schema.get("properties")
+        required = schema.get("required", [])
+        if not isinstance(properties, Mapping) or not isinstance(required, list):
+            return {}
+        payload: dict[str, Any] = {}
+        for name in required:
+            prop = properties.get(name)
+            if isinstance(name, str) and isinstance(prop, Mapping):
+                payload[name] = _value_from_schema(dict(prop), depth=depth + 1)
+        return payload
     return None
 
 
@@ -66,7 +125,7 @@ def build_minimal_valid_input(tool: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     for name in required:
         prop = properties.get(name)
-        if isinstance(prop, Mapping):
+        if isinstance(name, str) and isinstance(prop, Mapping):
             payload[name] = _value_from_schema(dict(prop))
 
     if not payload:

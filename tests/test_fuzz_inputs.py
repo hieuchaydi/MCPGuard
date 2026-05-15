@@ -70,10 +70,11 @@ def test_generate_fuzz_inputs_contains_expected_cases():
     assert payloads[0] == {}
     assert {"query": 12345} in payloads
     assert {"query": ""} in payloads
-    assert {"limit": 999999} in payloads
-    assert {"limit": "not_a_number"} in payloads
-    assert {"enabled": "true"} in payloads
-    assert {"items": "not_array"} in payloads
+    assert {"query": "x", "limit": 999999} in payloads
+    assert {"query": "x", "limit": "not_a_number"} in payloads
+    assert {"query": "x", "enabled": "true"} in payloads
+    assert {"query": "x", "items": "not_array"} in payloads
+    assert {"query": "x", "__mcpguard_unexpected": "unexpected"} in payloads
 
 
 @pytest.mark.asyncio

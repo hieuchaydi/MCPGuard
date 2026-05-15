@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class SchemaPolicy(BaseModel):
@@ -14,10 +15,30 @@ class SchemaPolicy(BaseModel):
     require_max_for_numbers: bool = True
     min_description_length: int = 10
 
+    @field_validator("min_description_length")
+    @classmethod
+    def _validate_min_description_length(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("min_description_length must be greater than or equal to 0")
+        return value
+
 
 class TimeoutPolicy(BaseModel):
     timeout_ms: int = 10000
     warn_after_ms: int = 3000
+
+    @model_validator(mode="after")
+    def _validate_timeouts(self) -> TimeoutPolicy:
+        if self.timeout_ms <= 0:
+            raise ValueError("timeout.timeout_ms must be greater than 0")
+        if self.warn_after_ms <= 0:
+            raise ValueError("timeout.warn_after_ms must be greater than 0")
+        if self.warn_after_ms > self.timeout_ms:
+            if "warn_after_ms" not in self.model_fields_set:
+                self.warn_after_ms = self.timeout_ms
+                return self
+            raise ValueError("timeout.warn_after_ms must be less than or equal to timeout.timeout_ms")
+        return self
 
 
 class SecretPolicy(BaseModel):
@@ -40,11 +61,28 @@ class SecretPolicy(BaseModel):
         ]
     )
 
+    @field_validator("patterns")
+    @classmethod
+    def _validate_patterns(cls, value: list[str]) -> list[str]:
+        return [pattern.strip() for pattern in value if pattern.strip()]
+
 
 class ToolPolicy(BaseModel):
     allow_paths: list[str] = Field(default_factory=list)
     deny_paths: list[str] = Field(default_factory=list)
     network: bool | None = None
+
+    @field_validator("allow_paths", "deny_paths")
+    @classmethod
+    def _normalize_paths(cls, value: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for item in value:
+            path = item.strip()
+            if path and path not in seen:
+                seen.add(path)
+                normalized.append(path)
+        return normalized
 
 
 class PromptInjectionPolicy(BaseModel):
@@ -110,6 +148,15 @@ def _load_yaml(config_file: Path) -> dict[str, Any]:
     return data
 
 
+def _mapping_section(raw: Mapping[str, Any], section: str) -> dict[str, Any]:
+    value = raw.get(section, {})
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError(f"Config section '{section}' must be a mapping.")
+    return dict(value)
+
+
 def load_config(
     config_file: Path | None = None,
     command_override: str | None = None,
@@ -119,14 +166,22 @@ def load_config(
     if config_file is not None:
         raw = _load_yaml(config_file)
 
+    server = _mapping_section(raw, "server")
+    policy = _mapping_section(raw, "policy")
+    schema = _mapping_section(raw, "schema")
+    timeout = _mapping_section(raw, "timeout")
+    secret = _mapping_section(raw, "secret")
+    tools = _mapping_section(raw, "tools")
+    checks = _mapping_section(raw, "checks")
+
     payload: dict[str, Any] = {
-        "server_command": raw.get("server", {}).get("command", ""),
-        "fail_on": raw.get("policy", {}).get("fail_on", "high"),
-        "schema": raw.get("schema", {}),
-        "timeout": raw.get("timeout", {}),
-        "secret": raw.get("secret", {}),
-        "tools": raw.get("tools", {}),
-        "checks": raw.get("checks", {}),
+        "server_command": server.get("command", ""),
+        "fail_on": policy.get("fail_on", "high"),
+        "schema": schema,
+        "timeout": timeout,
+        "secret": secret,
+        "tools": tools,
+        "checks": checks,
     }
 
     if command_override is not None:
